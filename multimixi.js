@@ -2,7 +2,6 @@
   'use strict';
 
   const SIZE = 8;
-  // Measured once after layout: tile size + gap
   let STEP = 55;
 
   let board = null;
@@ -12,6 +11,7 @@
   let animating = false;
   let highlighted = null; // [tr, tc]
   let solved = false;
+  let lastTouchTime = 0; // suppress synthetic click after touch
 
   const gridEl = document.getElementById('grid');
   const previewEl = document.getElementById('target-preview');
@@ -24,17 +24,28 @@
     if (tiles[0] && tiles[0][0] && tiles[0][1]) {
       const a = tiles[0][0].getBoundingClientRect();
       const b = tiles[0][1].getBoundingClientRect();
-      STEP = Math.round(b.left - a.left);
+      const s = Math.round(b.left - a.left);
+      if (s > 10) STEP = s;
     }
   }
 
   function setColor(el, isBlack) {
-    // Direct class swap without remove/add thrashing
-    if (isBlack) {
-      el.classList.add('black');
-    } else {
-      el.classList.remove('black');
-    }
+    if (isBlack) el.classList.add('black');
+    else el.classList.remove('black');
+  }
+
+  /**
+   * Top-left of the 2x2 that includes the tapped/hovered tile.
+   * Default: tile + right + below + lower-right.
+   * On far-right column → shift left one.
+   * On bottom row → shift up one.
+   */
+  function getTopLeft(r, c) {
+    let tr = r;
+    let tc = c;
+    if (tc >= SIZE - 1) tc = SIZE - 2; // far right → use left neighbor as left edge
+    if (tr >= SIZE - 1) tr = SIZE - 2; // bottom → use above as top edge
+    return [tr, tc];
   }
 
   // ---------- Board creation ----------
@@ -137,12 +148,9 @@
       els.push(el);
     }
     document.body.appendChild(frag);
-    setTimeout(() => {
-      for (const el of els) el.remove();
-    }, 2600);
+    setTimeout(() => { for (const el of els) el.remove(); }, 2600);
   }
 
-  // ---------- Render (minimal) ----------
   function render() {
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
@@ -170,10 +178,6 @@
   }
 
   // ---------- Highlight ----------
-  function getTopLeft(r, c) {
-    return [r > 6 ? 6 : r, c > 6 ? 6 : c];
-  }
-
   function clearHighlight() {
     if (!highlighted) return;
     const [tr, tc] = highlighted;
@@ -194,7 +198,7 @@
     highlighted = [tr, tc];
   }
 
-  // ---------- Rotation (optimized, no flicker) ----------
+  // ---------- Rotation ----------
   function rotateCW(tr, tc) {
     if (animating) return;
     animating = true;
@@ -206,10 +210,8 @@
     const C = tiles[tr + 1][tc];
     const D = tiles[tr + 1][tc + 1];
 
-    // Ensure we have accurate pixel step
-    if (STEP < 40) measureStep();
+    measureStep();
 
-    // Prepare transition
     const transition = 'transform 0.34s cubic-bezier(0.33, 1.15, 0.64, 1)';
     A.style.transition = transition;
     B.style.transition = transition;
@@ -221,29 +223,22 @@
     C.classList.add('animating');
     D.classList.add('animating');
 
-    // Force style application before transform
     void A.offsetWidth;
 
-    // Move: A→B, B→D, D→C, C→A
     A.style.transform = `translate(${STEP}px, 0)`;
     B.style.transform = `translate(0, ${STEP}px)`;
     D.style.transform = `translate(${-STEP}px, 0)`;
     C.style.transform = `translate(0, ${-STEP}px)`;
 
-    // After animation finishes: update data + colors first (while still translated),
-    // then snap transforms off with no transition. This eliminates the flicker.
     setTimeout(() => {
-      // Logical CW rotation
       const tmp = board[tr][tc];
       board[tr][tc] = board[tr + 1][tc];
       board[tr + 1][tc] = board[tr + 1][tc + 1];
       board[tr + 1][tc + 1] = board[tr][tc + 1];
       board[tr][tc + 1] = tmp;
 
-      // Update the four home cells to their new colors WHILE still translated
       updateFourColors(tr, tc);
 
-      // Now clear transforms instantly
       A.style.transition = 'none';
       B.style.transition = 'none';
       C.style.transition = 'none';
@@ -259,18 +254,26 @@
       C.classList.remove('animating');
       D.classList.remove('animating');
 
-      // Re-enable interaction
       animating = false;
       randomizeBtn.disabled = false;
       patternSelect.disabled = false;
-
       checkWin();
     }, 360);
   }
 
+  function handleActivate(r, c) {
+    if (animating) return;
+    const [tr, tc] = getTopLeft(r, c);
+    applyHighlight(tr, tc);
+    rotateCW(tr, tc);
+  }
+
   // ---------- Events ----------
+  // Mouse hover (desktop)
   gridEl.addEventListener('mouseover', (e) => {
     if (animating) return;
+    // Ignore if recent touch (prevents sticky highlight after tap)
+    if (Date.now() - lastTouchTime < 500) return;
     const tile = e.target.closest('.tile');
     if (!tile) return;
     const r = +tile.dataset.r;
@@ -283,15 +286,31 @@
     if (!animating) clearHighlight();
   });
 
+  // Click (desktop + fallback)
   gridEl.addEventListener('click', (e) => {
+    if (Date.now() - lastTouchTime < 500) return; // already handled by touch
     if (animating) return;
     const tile = e.target.closest('.tile');
     if (!tile) return;
+    handleActivate(+tile.dataset.r, +tile.dataset.c);
+  });
+
+  // Touch — primary path on mobile/tablet
+  gridEl.addEventListener('touchstart', (e) => {
+    if (animating) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const tile = el && el.closest ? el.closest('.tile') : null;
+    if (!tile || !gridEl.contains(tile)) return;
+
+    e.preventDefault(); // stop scroll + synthetic mouse events
+    lastTouchTime = Date.now();
+
     const r = +tile.dataset.r;
     const c = +tile.dataset.c;
-    const [tr, tc] = getTopLeft(r, c);
-    rotateCW(tr, tc);
-  });
+    handleActivate(r, c);
+  }, { passive: false });
 
   randomizeBtn.addEventListener('click', () => {
     if (animating) return;
@@ -307,6 +326,13 @@
     const name = patternSelect.options[patternSelect.selectedIndex].text;
     statusEl.textContent = `Target set to “${name}”`;
     checkWin();
+  });
+
+  // Re-measure on resize / orientation change
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(measureStep, 120);
   });
 
   // ---------- Init ----------
@@ -327,7 +353,6 @@
   setTargetFromId('checker');
   setRandom();
   render();
-  // Measure after first paint
   requestAnimationFrame(() => {
     measureStep();
     checkWin();
