@@ -2,16 +2,16 @@
   'use strict';
 
   const SIZE = 8;
-  let STEP = 55;
+  let STEP = 40;
 
   let board = null;
   let target = null;
   let tiles = [];
   let previewTiles = [];
   let animating = false;
-  let highlighted = null; // [tr, tc]
+  let highlighted = null;
   let solved = false;
-  let lastTouchTime = 0; // suppress synthetic click after touch
+  let lastTouchTime = 0;
 
   const gridEl = document.getElementById('grid');
   const previewEl = document.getElementById('target-preview');
@@ -19,13 +19,12 @@
   const randomizeBtn = document.getElementById('randomize');
   const patternSelect = document.getElementById('patternSelect');
 
-  // ---------- Helpers ----------
   function measureStep() {
     if (tiles[0] && tiles[0][0] && tiles[0][1]) {
       const a = tiles[0][0].getBoundingClientRect();
       const b = tiles[0][1].getBoundingClientRect();
-      const s = Math.round(b.left - a.left);
-      if (s > 10) STEP = s;
+      const s = b.left - a.left;
+      if (s > 8) STEP = s;
     }
   }
 
@@ -34,21 +33,14 @@
     else el.classList.remove('black');
   }
 
-  /**
-   * Top-left of the 2x2 that includes the tapped/hovered tile.
-   * Default: tile + right + below + lower-right.
-   * On far-right column → shift left one.
-   * On bottom row → shift up one.
-   */
   function getTopLeft(r, c) {
     let tr = r;
     let tc = c;
-    if (tc >= SIZE - 1) tc = SIZE - 2; // far right → use left neighbor as left edge
-    if (tr >= SIZE - 1) tr = SIZE - 2; // bottom → use above as top edge
+    if (tc >= SIZE - 1) tc = SIZE - 2;
+    if (tr >= SIZE - 1) tr = SIZE - 2;
     return [tr, tc];
   }
 
-  // ---------- Board creation ----------
   function createTiles() {
     const frag = document.createDocumentFragment();
     tiles = new Array(SIZE);
@@ -177,7 +169,6 @@
     setColor(tiles[tr + 1][tc + 1], board[tr + 1][tc + 1]);
   }
 
-  // ---------- Highlight ----------
   function clearHighlight() {
     if (!highlighted) return;
     const [tr, tc] = highlighted;
@@ -198,7 +189,6 @@
     highlighted = [tr, tc];
   }
 
-  // ---------- Rotation ----------
   function rotateCW(tr, tc) {
     if (animating) return;
     animating = true;
@@ -225,12 +215,12 @@
 
     void A.offsetWidth;
 
-    A.style.transform = `translate(${STEP}px, 0)`;
-    B.style.transform = `translate(0, ${STEP}px)`;
-    D.style.transform = `translate(${-STEP}px, 0)`;
-    C.style.transform = `translate(0, ${-STEP}px)`;
+    A.style.transform = 'translate(' + STEP + 'px, 0)';
+    B.style.transform = 'translate(0, ' + STEP + 'px)';
+    D.style.transform = 'translate(' + (-STEP) + 'px, 0)';
+    C.style.transform = 'translate(0, ' + (-STEP) + 'px)';
 
-    setTimeout(() => {
+    setTimeout(function () {
       const tmp = board[tr][tc];
       board[tr][tc] = board[tr + 1][tc];
       board[tr + 1][tc] = board[tr + 1][tc + 1];
@@ -263,40 +253,33 @@
 
   function handleActivate(r, c) {
     if (animating) return;
-    const [tr, tc] = getTopLeft(r, c);
-    applyHighlight(tr, tc);
-    rotateCW(tr, tc);
+    const pair = getTopLeft(r, c);
+    applyHighlight(pair[0], pair[1]);
+    rotateCW(pair[0], pair[1]);
   }
 
-  // ---------- Events ----------
-  // Mouse hover (desktop)
-  gridEl.addEventListener('mouseover', (e) => {
+  gridEl.addEventListener('mouseover', function (e) {
     if (animating) return;
-    // Ignore if recent touch (prevents sticky highlight after tap)
     if (Date.now() - lastTouchTime < 500) return;
     const tile = e.target.closest('.tile');
     if (!tile) return;
-    const r = +tile.dataset.r;
-    const c = +tile.dataset.c;
-    const [tr, tc] = getTopLeft(r, c);
-    applyHighlight(tr, tc);
+    const pair = getTopLeft(+tile.dataset.r, +tile.dataset.c);
+    applyHighlight(pair[0], pair[1]);
   });
 
-  gridEl.addEventListener('mouseleave', () => {
+  gridEl.addEventListener('mouseleave', function () {
     if (!animating) clearHighlight();
   });
 
-  // Click (desktop + fallback)
-  gridEl.addEventListener('click', (e) => {
-    if (Date.now() - lastTouchTime < 500) return; // already handled by touch
+  gridEl.addEventListener('click', function (e) {
+    if (Date.now() - lastTouchTime < 500) return;
     if (animating) return;
     const tile = e.target.closest('.tile');
     if (!tile) return;
     handleActivate(+tile.dataset.r, +tile.dataset.c);
   });
 
-  // Touch — primary path on mobile/tablet
-  gridEl.addEventListener('touchstart', (e) => {
+  gridEl.addEventListener('touchstart', function (e) {
     if (animating) return;
     const touch = e.changedTouches[0];
     if (!touch) return;
@@ -304,15 +287,12 @@
     const tile = el && el.closest ? el.closest('.tile') : null;
     if (!tile || !gridEl.contains(tile)) return;
 
-    e.preventDefault(); // stop scroll + synthetic mouse events
+    e.preventDefault();
     lastTouchTime = Date.now();
-
-    const r = +tile.dataset.r;
-    const c = +tile.dataset.c;
-    handleActivate(r, c);
+    handleActivate(+tile.dataset.r, +tile.dataset.c);
   }, { passive: false });
 
-  randomizeBtn.addEventListener('click', () => {
+  randomizeBtn.addEventListener('click', function () {
     if (animating) return;
     setRandom();
     render();
@@ -320,25 +300,24 @@
     checkWin();
   });
 
-  patternSelect.addEventListener('change', () => {
+  patternSelect.addEventListener('change', function () {
     if (animating) return;
     setTargetFromId(patternSelect.value);
     const name = patternSelect.options[patternSelect.selectedIndex].text;
-    statusEl.textContent = `Target set to “${name}”`;
+    statusEl.textContent = 'Target set to “' + name + '”';
     checkWin();
   });
 
-  // Re-measure on resize / orientation change
   let resizeTimer = null;
-  window.addEventListener('resize', () => {
+  window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(measureStep, 120);
+    resizeTimer = setTimeout(measureStep, 100);
   });
 
-  // ---------- Init ----------
   function populateSelect() {
     const frag = document.createDocumentFragment();
-    for (const p of PATTERNS) {
+    for (let i = 0; i < PATTERNS.length; i++) {
+      const p = PATTERNS[i];
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.name;
@@ -353,7 +332,7 @@
   setTargetFromId('checker');
   setRandom();
   render();
-  requestAnimationFrame(() => {
+  requestAnimationFrame(function () {
     measureStep();
     checkWin();
     statusEl.textContent = 'Randomized — try to reach the Checkerboard';
