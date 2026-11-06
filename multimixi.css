@@ -1,13 +1,12 @@
 :root {
-  --tile: 52px;
-  --gap: 3px;
   --bg: #0f0f1a;
   --panel: #1a1a2e;
   --accent: #00e5ff;
   --black: #0d0d0d;
   --white: #e8e8e8;
   --win: #39ff14;
-  --preview-tile: 14px;
+  --gap: clamp(2px, 0.45vw, 4px);
+  --board-pad: clamp(6px, 1.2vw, 10px);
   --preview-gap: 1px;
 }
 
@@ -28,8 +27,8 @@ body {
   background: var(--bg);
   color: #ddd;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  gap: 1rem;
-  padding: 1rem;
+  gap: clamp(0.6rem, 1.5vw, 1.1rem);
+  padding: clamp(0.5rem, 2vw, 1.25rem);
   transition: background 0.5s ease;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
@@ -39,38 +38,48 @@ body.won { background: #0a1f0a; }
 
 h1 {
   font-weight: 600;
-  font-size: clamp(1.25rem, 4vw, 1.7rem);
+  font-size: clamp(1.2rem, 3.5vw, 1.7rem);
   letter-spacing: 0.02em;
   color: #fff;
+  flex-shrink: 0;
 }
 
 .hint {
-  font-size: clamp(0.8rem, 2.5vw, 0.95rem);
+  font-size: clamp(0.78rem, 2.2vw, 0.95rem);
   opacity: 0.7;
   text-align: center;
   max-width: 36rem;
   line-height: 1.45;
   padding: 0 0.5rem;
+  flex-shrink: 0;
 }
 
 .boards-row {
   display: flex;
-  align-items: flex-start;
-  gap: 1.25rem;
+  align-items: center;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
   flex-wrap: wrap;
   justify-content: center;
   width: 100%;
   max-width: 100%;
+  flex: 0 1 auto;
 }
 
 #board-wrap {
   background: var(--panel);
-  padding: 8px;
+  padding: var(--board-pad);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);
   position: relative;
   transition: box-shadow 0.4s ease;
-  flex-shrink: 0;
+  width: min(
+    92vw,
+    calc(100dvh - 11.5rem),
+    560px
+  );
+  max-width: 100%;
+  aspect-ratio: 1;
+  flex-shrink: 1;
 }
 
 body.won #board-wrap {
@@ -85,23 +94,27 @@ body.won #board-wrap {
 
 #grid {
   display: grid;
-  grid-template-columns: repeat(8, var(--tile));
-  grid-template-rows: repeat(8, var(--tile));
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
   gap: var(--gap);
+  width: 100%;
+  height: 100%;
   position: relative;
   touch-action: none;
 }
 
 .tile {
-  width: var(--tile);
-  height: var(--tile);
-  border-radius: 4px;
+  width: 100%;
+  height: 100%;
+  border-radius: clamp(3px, 0.6vw, 5px);
   cursor: pointer;
   position: relative;
   z-index: 1;
   will-change: transform;
   background: var(--white);
   box-shadow: inset 0 0 0 1px #bbb;
+  min-width: 0;
+  min-height: 0;
 }
 
 .tile.black {
@@ -147,16 +160,20 @@ body.won .tile.highlight {
 
 #target-preview {
   display: grid;
-  grid-template-columns: repeat(8, var(--preview-tile));
-  grid-template-rows: repeat(8, var(--preview-tile));
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
   gap: var(--preview-gap);
+  width: clamp(88px, 18vw, 128px);
+  aspect-ratio: 1;
 }
 
 .preview-tile {
-  width: var(--preview-tile);
-  height: var(--preview-tile);
+  width: 100%;
+  height: 100%;
   border-radius: 2px;
   background: var(--white);
+  min-width: 0;
+  min-height: 0;
 }
 
 .preview-tile.black { background: var(--black); }
@@ -169,6 +186,7 @@ body.won .tile.highlight {
   justify-content: center;
   width: 100%;
   max-width: 28rem;
+  flex-shrink: 0;
 }
 
 label {
@@ -221,6 +239,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   transition: color 0.3s ease;
   text-align: center;
   padding: 0 0.5rem;
+  flex-shrink: 0;
 }
 
 body.won .status {
@@ -245,38 +264,34 @@ body.won .status {
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
 
-/* Mobile */
 @media (max-width: 520px) {
-  :root {
-    --tile: min(11.2vw, 44px);
-    --gap: 2px;
-    --preview-tile: 11px;
-  }
-
   body {
-    padding: 0.75rem 0.5rem;
-    gap: 0.85rem;
     justify-content: flex-start;
-    padding-top: 1.25rem;
+    padding-top: 1rem;
   }
 
   .boards-row {
     flex-direction: column;
     align-items: center;
-    gap: 0.9rem;
   }
 
-  #board-wrap { padding: 6px; }
+  #board-wrap {
+    width: min(94vw, calc(100dvh - 14rem));
+  }
 
   #preview-wrap {
     flex-direction: row;
-    gap: 0.6rem;
+    gap: 0.55rem;
     padding: 6px 10px;
   }
 
-  .hint { font-size: 0.82rem; }
+  #target-preview {
+    width: clamp(72px, 22vw, 100px);
+  }
 
-  #controls { gap: 0.5rem; }
+  #controls {
+    gap: 0.5rem;
+  }
 
   select {
     flex: 1 1 auto;
@@ -285,27 +300,26 @@ body.won .status {
   }
 }
 
-@media (max-width: 360px) {
-  :root {
-    --tile: min(10.8vw, 38px);
-    --gap: 2px;
-    --preview-tile: 9px;
+@media (max-height: 480px) and (orientation: landscape) {
+  body {
+    gap: 0.4rem;
+    padding: 0.4rem;
   }
-}
 
-@media (min-width: 521px) and (max-width: 900px) {
-  :root {
-    --tile: 48px;
-    --gap: 3px;
-    --preview-tile: 13px;
+  h1 { font-size: 1.1rem; }
+  .hint { display: none; }
+
+  #board-wrap {
+    width: min(70vw, calc(100dvh - 5.5rem), 420px);
   }
-}
 
-@media (min-width: 901px) {
-  :root {
-    --tile: 54px;
-    --gap: 3px;
-    --preview-tile: 15px;
+  .boards-row {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  #target-preview {
+    width: 72px;
   }
 }
 
