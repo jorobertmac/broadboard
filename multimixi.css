@@ -65,6 +65,7 @@ h1 {
   flex: 0 1 auto;
 }
 
+/* Board scales to fit remaining viewport */
 #board-wrap {
   background: var(--panel);
   padding: var(--board-pad);
@@ -73,9 +74,9 @@ h1 {
   position: relative;
   transition: box-shadow 0.4s ease;
   width: min(
-    92vw,
+    94vw,
     calc(100dvh - 11.5rem),
-    560px
+    640px
   );
   max-width: 100%;
   aspect-ratio: 1;
@@ -106,13 +107,13 @@ body.won #board-wrap {
 .tile {
   width: 100%;
   height: 100%;
-  border-radius: clamp(3px, 0.6vw, 5px);
+  border-radius: clamp(1px, 0.4vw, 5px);
   cursor: pointer;
   position: relative;
   z-index: 1;
   will-change: transform;
   background: var(--white);
-  box-shadow: inset 0 0 0 1px #bbb;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12);
   min-width: 0;
   min-height: 0;
 }
@@ -139,6 +140,7 @@ body.won .tile.highlight {
   pointer-events: none;
 }
 
+/* Target preview */
 #preview-wrap {
   background: var(--panel);
   padding: 8px 10px;
@@ -174,6 +176,7 @@ body.won .tile.highlight {
   background: var(--white);
   min-width: 0;
   min-height: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
 }
 
 .preview-tile.black { background: var(--black); }
