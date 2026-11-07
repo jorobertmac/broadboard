@@ -1,74 +1,82 @@
-// MultiMixi pattern definitions
-// Each generator returns 0 (white) or 1 (black). makeBoardFromGen balances to exactly 32 black.
+/**
+ * Broad Board — pattern loader
+ * Loads manifest + individual JSON files from patterns/black-and-white and patterns/color
+ */
+(function (global) {
+  'use strict';
 
-const PATTERNS = [
-  { id: 'checker', name: 'Checkerboard', gen: (r, c) => (r + c) % 2 },
-  { id: 'checkerOpp', name: 'Opposite Checkerboard', gen: (r, c) => (r + c + 1) % 2 },
-  { id: 'halfTop', name: 'Top Black / Bottom White', gen: (r, c) => r < 4 ? 1 : 0 },
-  { id: 'halfBottom', name: 'Bottom Black / Top White', gen: (r, c) => r >= 4 ? 1 : 0 },
-  { id: 'halfLeft', name: 'Left Black / Right White', gen: (r, c) => c < 4 ? 1 : 0 },
-  { id: 'halfRight', name: 'Right Black / Left White', gen: (r, c) => c >= 4 ? 1 : 0 },
-  { id: 'stripesH', name: 'Horizontal Stripes', gen: (r, c) => Math.floor(r / 2) % 2 },
-  { id: 'stripesV', name: 'Vertical Stripes', gen: (r, c) => Math.floor(c / 2) % 2 },
-  { id: 'stripesH1', name: 'Fine Horizontal Stripes', gen: (r, c) => r % 2 },
-  { id: 'stripesV1', name: 'Fine Vertical Stripes', gen: (r, c) => c % 2 },
-  { id: 'quad', name: 'Quadrants (TL+BR Black)', gen: (r, c) => ((r < 4 && c < 4) || (r >= 4 && c >= 4)) ? 1 : 0 },
-  { id: 'quadAlt', name: 'Quadrants (TR+BL Black)', gen: (r, c) => ((r < 4 && c >= 4) || (r >= 4 && c < 4)) ? 1 : 0 },
-  { id: 'diagMain', name: 'Thick Main Diagonal', gen: (r, c) => Math.abs(r - c) <= 1 ? 1 : 0 },
-  { id: 'diagAnti', name: 'Thick Anti-Diagonal', gen: (r, c) => Math.abs(r + c - 7) <= 1 ? 1 : 0 },
-  { id: 'bothDiag', name: 'Both Thick Diagonals (X)', gen: (r, c) => (Math.abs(r - c) <= 1 || Math.abs(r + c - 7) <= 1) ? 1 : 0 },
-  { id: 'frame', name: 'Outer Frame', gen: (r, c) => (r === 0 || r === 7 || c === 0 || c === 7) ? 1 : 0 },
-  { id: 'innerFrame', name: 'Double Frame', gen: (r, c) => {
-      const outer = r === 0 || r === 7 || c === 0 || c === 7;
-      const inner = r === 1 || r === 6 || c === 1 || c === 6;
-      return (outer || inner) ? 1 : 0;
-    }
-  },
-  { id: 'centerBlock', name: 'Center 4×4 Black', gen: (r, c) => (r >= 2 && r <= 5 && c >= 2 && c <= 5) ? 1 : 0 },
-  { id: 'radial', name: 'Radial (Center Black)', gen: (r, c) => {
-      const dr = r - 3.5, dc = c - 3.5;
-      return (dr * dr + dc * dc) < 12 ? 1 : 0;
-    }
-  },
-  { id: 'radialInv', name: 'Radial (Center White)', gen: (r, c) => {
-      const dr = r - 3.5, dc = c - 3.5;
-      return (dr * dr + dc * dc) >= 12 ? 1 : 0;
-    }
-  },
-  { id: 'corners', name: 'Four Corners', gen: (r, c) => {
-      const inCorner = (r < 3 && c < 3) || (r < 3 && c > 4) || (r > 4 && c < 3) || (r > 4 && c > 4);
-      return inCorner ? 1 : 0;
-    }
-  },
-  { id: 'plus', name: 'Plus / Cross', gen: (r, c) => (r === 3 || r === 4 || c === 3 || c === 4) ? 1 : 0 }
-];
+  const COLORS = [
+    '#e8e8e8', // 0  light / white
+    '#0d0d0d', // 1  black
+    '#e74c3c', // 2  red
+    '#3498db', // 3  blue
+    '#2ecc71', // 4  green
+    '#f1c40f', // 5  yellow
+    '#9b59b6', // 6  purple
+    '#e67e22', // 7  orange
+    '#1abc9c', // 8  teal
+    '#e91e63', // 9  pink
+  ];
 
-function makeBoardFromGen(gen) {
-  const SIZE = 8;
-  const b = Array.from({ length: SIZE }, (_, r) =>
-    Array.from({ length: SIZE }, (_, c) => (gen(r, c) ? 1 : 0))
-  );
-  let count = 0;
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) count += b[r][c];
-  }
-  if (count !== 32) {
-    const needBlack = count < 32;
-    const candidates = [];
-    for (let r = 0; r < SIZE; r++) {
-      for (let c = 0; c < SIZE; c++) {
-        if ((needBlack && b[r][c] === 0) || (!needBlack && b[r][c] === 1)) {
-          candidates.push({ r, c, dist: Math.abs(r - 3.5) + Math.abs(c - 3.5) });
-        }
+  /** @type {{id:string,name:string,size:number,category:string,path:string}[]} */
+  let PATTERNS = [];
+  let manifestLoaded = false;
+  const patternCache = new Map();
+
+  function patternsBase() {
+    const scripts = document.getElementsByTagName('script');
+    for (let i = scripts.length - 1; i >= 0; i--) {
+      const src = scripts[i].src || '';
+      if (src.indexOf('patterns.js') !== -1) {
+        return src.replace(/patterns\.js(\?.*)?$/, 'patterns/');
       }
     }
-    candidates.sort((a, b) => a.dist - b.dist);
-    let i = 0;
-    while (count !== 32 && i < candidates.length) {
-      const { r, c } = candidates[i++];
-      b[r][c] = needBlack ? 1 : 0;
-      count += needBlack ? 1 : -1;
-    }
+    return 'patterns/';
   }
-  return b;
-}
+
+  const BASE = patternsBase();
+
+  async function loadManifest() {
+    if (manifestLoaded) return PATTERNS;
+    const res = await fetch(BASE + 'manifest.json');
+    if (!res.ok) throw new Error('Failed to load pattern manifest');
+    const data = await res.json();
+    PATTERNS = data.patterns || [];
+    manifestLoaded = true;
+    global.PATTERNS = PATTERNS;
+    return PATTERNS;
+  }
+
+  async function loadPattern(entryOrId) {
+    let entry = entryOrId;
+    if (typeof entryOrId === 'string') {
+      entry = PATTERNS.find((p) => p.id === entryOrId);
+      if (!entry) throw new Error('Unknown pattern: ' + entryOrId);
+    }
+    if (patternCache.has(entry.id)) {
+      return patternCache.get(entry.id);
+    }
+    const res = await fetch(BASE + entry.path);
+    if (!res.ok) throw new Error('Failed to load pattern ' + entry.path);
+    const data = await res.json();
+    patternCache.set(entry.id, data);
+    return data;
+  }
+
+  function makeBoardFromPattern(pat) {
+    if (!pat || !pat.grid) return null;
+    return pat.grid.map((row) => row.slice());
+  }
+
+  function makeBoardFromGen() {
+    console.warn('makeBoardFromGen is deprecated');
+    return null;
+  }
+
+  global.COLORS = COLORS;
+  global.PATTERNS = PATTERNS;
+  global.loadPatternManifest = loadManifest;
+  global.loadPattern = loadPattern;
+  global.makeBoardFromPattern = makeBoardFromPattern;
+  global.makeBoardFromGen = makeBoardFromGen;
+})(typeof window !== 'undefined' ? window : globalThis);
