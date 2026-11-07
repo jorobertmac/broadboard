@@ -1,5 +1,5 @@
 /**
- * Broad Board — pattern loader
+ * Broad Board - pattern loader
  * Prefers JSON files under patterns/; falls back to built-in generators so the
  * game works even when not every size/category file is present yet.
  */
@@ -63,8 +63,8 @@
       }],
       ['corners', 'Four Corners', function (r, c) {
         const m = Math.max(1, Math.floor(size / 4));
-        return ((r < m && c < m) || (r < m && c >= size - m) ||
-                (r >= size - m && c < m) || (r >= size - m && c >= size - m)) ? 1 : 0;
+        return ((r < m && c < m) || (r >= size - m && c < m) ||
+                (r >= size - m && c >= size - m) || (r < m && c >= size - m)) ? 1 : 0;
       }],
       ['zigzag-h', 'Zigzag Horizontal', function (r, c) { return (c + (r % 2)) % 2; }],
     ];
@@ -88,7 +88,7 @@
         const bc = Math.min(2, Math.floor((c * 3) / size));
         return 2 + (br * 3 + bc) % 6;
       }],
-      ['blocks-2x2', 'Color Mosaic 2×2', function (r, c) { return 2 + ((((r / 2) | 0) + ((c / 2) | 0) * 3) % 6); }],
+      ['blocks-2x2', 'Color Mosaic 2x2', function (r, c) { return 2 + ((((r / 2) | 0) + ((c / 2) | 0) * 3) % 6); }],
       ['bullseye', 'Bullseye', function (r, c) {
         const d = Math.floor(Math.max(Math.abs(r - mid), Math.abs(c - mid)));
         return [2, 0, 3, 1, 4, 5, 6, 7][d % 8];
@@ -183,6 +183,30 @@
           manifestLoaded = true;
           global.PATTERNS = PATTERNS;
           return PATTERNS;
+        }
+        // Split manifests: { parts: ["manifest-4.json", ...] }
+        if (data.parts && data.parts.length) {
+          const parts = await Promise.all(
+            data.parts.map(function (p) {
+              return fetch(BASE + p).then(function (r) {
+                return r.ok ? r.json() : { patterns: [] };
+              }).catch(function () { return { patterns: [] }; });
+            })
+          );
+          const merged = [];
+          for (let i = 0; i < parts.length; i++) {
+            if (parts[i].patterns) {
+              for (let j = 0; j < parts[i].patterns.length; j++) {
+                merged.push(parts[i].patterns[j]);
+              }
+            }
+          }
+          if (merged.length) {
+            PATTERNS = merged;
+            manifestLoaded = true;
+            global.PATTERNS = PATTERNS;
+            return PATTERNS;
+          }
         }
       }
     } catch (e) { /* use builtin */ }
