@@ -94,6 +94,7 @@
     gridEl.style.gridTemplateRows = 'repeat(' + SIZE + ', 1fr)';
     previewEl.style.gridTemplateColumns = 'repeat(' + SIZE + ', 1fr)';
     previewEl.style.gridTemplateRows = 'repeat(' + SIZE + ', 1fr)';
+    // Tighter gaps on large boards
     if (SIZE >= 12) {
       gridEl.style.gap = '1px';
       document.documentElement.style.setProperty('--gap', '1px');
@@ -109,37 +110,31 @@
     createPreviewTiles();
   }
 
-  function colorsInTarget() {
-    const set = new Set();
-    if (!target) return [0, 1];
-    for (let r = 0; r < SIZE; r++) {
-      for (let c = 0; c < SIZE; c++) set.add(target[r][c] | 0);
-    }
-    return Array.from(set);
-  }
-
   function setRandom() {
-    board = Array.from({ length: SIZE }, () => new Array(SIZE).fill(0));
-    const palette = colorsInTarget();
+    // Use the exact color counts from the target pattern, then shuffle
+    // positions. Equal-distribution of the palette made many patterns
+    // impossible when a color appeared more (or less) often than others.
     const n = SIZE * SIZE;
-    const positions = Array.from({ length: n }, (_, i) => i);
+    const colors = new Array(n);
+    if (target) {
+      let k = 0;
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          colors[k++] = target[r][c] | 0;
+        }
+      }
+    } else {
+      for (let k = 0; k < n; k++) colors[k] = 0;
+    }
     for (let i = n - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
-      const t = positions[i];
-      positions[i] = positions[j];
-      positions[j] = t;
+      const t = colors[i];
+      colors[i] = colors[j];
+      colors[j] = t;
     }
+    board = Array.from({ length: SIZE }, () => new Array(SIZE));
     for (let k = 0; k < n; k++) {
-      const p = positions[k];
-      board[(p / SIZE) | 0][p % SIZE] = palette[k % palette.length];
-    }
-    for (let i = 0; i < n; i++) {
-      const j = (Math.random() * n) | 0;
-      const ri = (i / SIZE) | 0, ci = i % SIZE;
-      const rj = (j / SIZE) | 0, cj = j % SIZE;
-      const tmp = board[ri][ci];
-      board[ri][ci] = board[rj][cj];
-      board[rj][cj] = tmp;
+      board[(k / SIZE) | 0][k % SIZE] = colors[k];
     }
     solved = false;
     document.body.classList.remove('won');
@@ -402,6 +397,7 @@
     patternSelect.innerHTML = '';
     const frag = document.createDocumentFragment();
 
+    // Group: size → category → patterns
     const bySize = {};
     for (let i = 0; i < patterns.length; i++) {
       const p = patterns[i];
@@ -453,6 +449,7 @@
       const patterns = await loadPatternManifest();
       populateSelect(patterns);
 
+      // Default: 8×8 checkerboard B&W
       const defaultId = patterns.find(function (p) {
         return p.id === 'checker-8';
       }) || patterns.find(function (p) {
