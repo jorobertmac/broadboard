@@ -11,8 +11,8 @@
 
   let animating = false;
   let lastTouchTime = 0;
-  /** Selected rotation in degrees: 90 (CW), 180, or -90 (CCW). Default −90° for left-click. */
-  let rotateDeg = -90;
+  /** Selected rotation in degrees: 90 (CW), 180, or -90 (CCW). Default 90° clockwise. */
+  let rotateDeg = 90;
 
   const randomizeBtn = document.getElementById('randomize');
   const rotateDirEl = document.getElementById('rotateDir');
