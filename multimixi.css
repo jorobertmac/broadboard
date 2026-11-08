@@ -73,6 +73,7 @@ h1 {
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);
   position: relative;
   transition: box-shadow 0.4s ease;
+  /* Prefer width that fits viewport; leave headroom for chrome + preview + controls */
   width: min(
     94vw,
     calc(100dvh - 11.5rem),
@@ -140,7 +141,7 @@ body.won .tile.highlight {
   pointer-events: none;
 }
 
-/* Target preview */
+/* Target preview — proportional to board on large screens, compact on mobile */
 #preview-wrap {
   background: var(--panel);
   padding: 8px 10px;
@@ -188,8 +189,10 @@ body.won .tile.highlight {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 28rem;
+  max-width: 36rem;
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
 }
 
 label {
@@ -197,27 +200,156 @@ label {
   opacity: 0.85;
 }
 
-select {
+/* Custom pattern picker with tiny thumbnails */
+.pattern-picker {
+  position: relative;
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  max-width: 22rem;
+}
+
+.pattern-picker-btn {
   appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
   background: #2a2a40;
   color: #eee;
   border: 1px solid #444;
   border-radius: 8px;
-  padding: 0.55rem 2rem 0.55rem 0.9rem;
-  font-size: 0.95rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
-  max-width: 100%;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23aaa' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.7rem center;
+  min-height: 44px;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-select:focus {
+.pattern-picker-btn:hover:not(:disabled) {
+  border-color: #666;
+}
+
+.pattern-picker-btn:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-button {
+.pattern-picker-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pattern-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  background: #111;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.pattern-picker-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pattern-picker-chevron {
+  flex-shrink: 0;
+  opacity: 0.65;
+  font-size: 0.75rem;
+  transition: transform 0.15s ease;
+}
+
+.pattern-picker.open .pattern-picker-chevron {
+  transform: rotate(180deg);
+}
+
+.pattern-picker-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #1e1e32;
+  border: 1px solid #444;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+  padding: 0.35rem 0;
+  z-index: 30;
+}
+
+.pattern-group-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.55;
+  padding: 0.45rem 0.75rem 0.2rem;
+  pointer-events: none;
+}
+
+.pattern-option {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #eee;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  min-height: 36px;
+  border-radius: 0;
+}
+
+.pattern-option:hover,
+.pattern-option:focus {
+  background: rgba(0, 229, 255, 0.12);
+  outline: none;
+}
+
+.pattern-option.selected {
+  background: rgba(0, 229, 255, 0.2);
+  color: #fff;
+}
+
+.pattern-option-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  background: #111;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+.pattern-option-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pattern-option-size {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+#randomize {
   appearance: none;
   border: none;
   background: var(--accent);
@@ -229,11 +361,12 @@ button {
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.15s ease;
   min-height: 44px;
+  flex-shrink: 0;
 }
 
-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
-button:active { transform: translateY(0); }
-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+#randomize:hover { filter: brightness(1.08); transform: translateY(-1px); }
+#randomize:active { transform: translateY(0); }
+#randomize:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .status {
   font-size: 0.95rem;
@@ -267,6 +400,7 @@ body.won .status {
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
 
+/* Narrow phones: stack board + preview, use more vertical room for board */
 @media (max-width: 520px) {
   body {
     justify-content: flex-start;
@@ -294,15 +428,20 @@ body.won .status {
 
   #controls {
     gap: 0.5rem;
+    max-width: 100%;
   }
 
-  select {
-    flex: 1 1 auto;
-    min-width: 0;
-    font-size: 0.9rem;
+  .pattern-picker {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .pattern-picker-menu {
+    max-height: min(42vh, 280px);
   }
 }
 
+/* Landscape phones: keep board smaller so chrome fits */
 @media (max-height: 480px) and (orientation: landscape) {
   body {
     gap: 0.4rem;
