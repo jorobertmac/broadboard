@@ -164,7 +164,6 @@ body.won .tile.highlight {
 #target-preview {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
   gap: var(--preview-gap);
   width: clamp(88px, 18vw, 128px);
   aspect-ratio: 1;
@@ -347,6 +346,51 @@ label {
   font-size: 0.72rem;
   opacity: 0.5;
   font-variant-numeric: tabular-nums;
+}
+
+.rotate-dir {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #444;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #2a2a40;
+}
+
+.rotate-dir-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #ccc;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 3.1rem;
+  transition: background 0.15s ease, color 0.15s ease;
+  border-right: 1px solid #444;
+}
+
+.rotate-dir-btn:last-child {
+  border-right: none;
+}
+
+.rotate-dir-btn:hover:not(:disabled) {
+  background: rgba(0, 229, 255, 0.1);
+  color: #fff;
+}
+
+.rotate-dir-btn.selected,
+.rotate-dir-btn[aria-pressed="true"] {
+  background: rgba(0, 229, 255, 0.22);
+  color: #fff;
+}
+
+.rotate-dir-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 #randomize {
