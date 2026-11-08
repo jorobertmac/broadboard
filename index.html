@@ -16,7 +16,7 @@
 </head>
 <body>
   <h1>Broad Board</h1>
-  <p class="hint">Tap or click a tile to rotate its 2×2 block 90° clockwise. Pick a pattern (4×4 through 16×16, black &amp; white or color) — the board resizes and loads the matching tiles. Match the target.</p>
+  <p class="hint">Tap or click a tile to rotate its 2×2 block. Choose 90°, 180°, or −90° below — left click uses the selected direction. Pick a pattern (4×4 through 16×16, black &amp; white or color) — the board resizes and loads the matching tiles. Match the target.</p>
 
   <div class="boards-row">
     <div id="board-wrap">
@@ -39,6 +39,11 @@
         <span class="pattern-picker-chevron" aria-hidden="true">▾</span>
       </button>
       <div class="pattern-picker-menu" id="patternPickerMenu" hidden role="listbox" aria-label="Pattern list"></div>
+    </div>
+    <div class="rotate-dir" id="rotateDir" role="group" aria-label="Rotation direction">
+      <button type="button" class="rotate-dir-btn" data-deg="90" aria-pressed="false" title="90° clockwise">90°</button>
+      <button type="button" class="rotate-dir-btn" data-deg="180" aria-pressed="false" title="180°">180°</button>
+      <button type="button" class="rotate-dir-btn selected" data-deg="-90" aria-pressed="true" title="90° counterclockwise (−90°)">−90°</button>
     </div>
     <button type="button" id="randomize">Randomize</button>
   </div>
