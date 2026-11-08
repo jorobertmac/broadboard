@@ -1,1 +1,1 @@
-see_local
+/* Moved: load board.js, picker.js, game.js instead. */

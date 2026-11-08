@@ -1,1 +1,1 @@
-RESTORED_FROM_LOCAL_FIXED
+/* Moved: load patterns-gens-bw.js, patterns-gens-color.js, patterns-core.js instead. */

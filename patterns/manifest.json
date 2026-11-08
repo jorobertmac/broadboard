@@ -1,1 +1,24 @@
-{"sizes":[4,6,8,10,12,14,16],"categories":["black-and-white","color"],"parts":["manifest-4.json","manifest-6.json","manifest-8.json","manifest-10.json","manifest-12.json","manifest-14.json","manifest-16.json"]}
+{
+  "sizes": [
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16
+  ],
+  "categories": [
+    "black-and-white",
+    "color"
+  ],
+  "parts": [
+    "manifest-4.json",
+    "manifest-6.json",
+    "manifest-8.json",
+    "manifest-10.json",
+    "manifest-12.json",
+    "manifest-14.json",
+    "manifest-16.json"
+  ]
+}
