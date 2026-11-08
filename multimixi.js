@@ -13,12 +13,18 @@
   let solved = false;
   let lastTouchTime = 0;
   let currentPatternId = null;
+  let allPatterns = [];
+  let pickerOpen = false;
 
   const gridEl = document.getElementById('grid');
   const previewEl = document.getElementById('target-preview');
   const statusEl = document.getElementById('status');
   const randomizeBtn = document.getElementById('randomize');
-  const patternSelect = document.getElementById('patternSelect');
+  const pickerRoot = document.getElementById('patternPicker');
+  const pickerBtn = document.getElementById('patternPickerBtn');
+  const pickerLabel = document.getElementById('patternPickerLabel');
+  const pickerThumb = document.getElementById('patternPickerThumb');
+  const pickerMenu = document.getElementById('patternPickerMenu');
 
   function measureStep() {
     if (tiles[0] && tiles[0][0] && tiles[0][1]) {
@@ -94,7 +100,6 @@
     gridEl.style.gridTemplateRows = 'repeat(' + SIZE + ', 1fr)';
     previewEl.style.gridTemplateColumns = 'repeat(' + SIZE + ', 1fr)';
     previewEl.style.gridTemplateRows = 'repeat(' + SIZE + ', 1fr)';
-    // Tighter gaps on large boards
     if (SIZE >= 12) {
       gridEl.style.gap = '1px';
       document.documentElement.style.setProperty('--gap', '1px');
@@ -111,9 +116,7 @@
   }
 
   function setRandom() {
-    // Use the exact color counts from the target pattern, then shuffle
-    // positions. Equal-distribution of the palette made many patterns
-    // impossible when a color appeared more (or less) often than others.
+    // Exact color multiset from the target, then shuffle positions.
     const n = SIZE * SIZE;
     const colors = new Array(n);
     if (target) {
@@ -132,7 +135,7 @@
       colors[i] = colors[j];
       colors[j] = t;
     }
-    board = Array.from({ length: SIZE }, () => new Array(SIZE));
+    board = Array.from({ length: SIZE }, function () { return new Array(SIZE); });
     for (let k = 0; k < n; k++) {
       board[(k / SIZE) | 0][k % SIZE] = colors[k];
     }
@@ -156,6 +159,7 @@
       solved = false;
       document.body.classList.remove('won');
       renderTargetPreview();
+      updatePickerSelection(id);
     } catch (err) {
       console.error(err);
       statusEl.textContent = 'Failed to load pattern';
@@ -258,7 +262,7 @@
     if (animating) return;
     animating = true;
     randomizeBtn.disabled = true;
-    patternSelect.disabled = true;
+    setPickerEnabled(false);
 
     const A = tiles[tr][tc];
     const B = tiles[tr][tc + 1];
@@ -311,7 +315,7 @@
 
       animating = false;
       randomizeBtn.disabled = false;
-      patternSelect.disabled = false;
+      setPickerEnabled(true);
       checkWin();
     }, 300);
   }
@@ -322,6 +326,176 @@
     applyHighlight(pair[0], pair[1]);
     rotateCW(pair[0], pair[1]);
   }
+
+  // ——— Pattern picker (custom select with thumbnails) ———
+
+  function setPickerEnabled(on) {
+    if (pickerBtn) pickerBtn.disabled = !on;
+  }
+
+  function closePicker() {
+    if (!pickerOpen) return;
+    pickerOpen = false;
+    pickerMenu.hidden = true;
+    pickerBtn.setAttribute('aria-expanded', 'false');
+    pickerRoot.classList.remove('open');
+  }
+
+  function openPicker() {
+    if (pickerOpen || animating) return;
+    pickerOpen = true;
+    pickerMenu.hidden = false;
+    pickerBtn.setAttribute('aria-expanded', 'true');
+    pickerRoot.classList.add('open');
+    const canvases = pickerMenu.querySelectorAll('canvas[data-pattern-id]');
+    for (let i = 0; i < canvases.length; i++) {
+      const c = canvases[i];
+      if (c.dataset.drawn === '1') continue;
+      if (typeof drawPatternThumb === 'function') {
+        drawPatternThumb(c, c.dataset.patternId, 24);
+        c.dataset.drawn = '1';
+      }
+    }
+    const selected = pickerMenu.querySelector('.pattern-option.selected');
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  }
+
+  function togglePicker() {
+    if (pickerOpen) closePicker();
+    else openPicker();
+  }
+
+  function updatePickerSelection(id) {
+    currentPatternId = id;
+    const entry = (typeof getPatternEntry === 'function' && getPatternEntry(id)) ||
+      allPatterns.find(function (p) { return p.id === id; });
+    if (entry && pickerLabel) {
+      pickerLabel.textContent = entry.name + ' · ' + entry.size + '×' + entry.size;
+    }
+    if (pickerThumb && typeof drawPatternThumb === 'function') {
+      drawPatternThumb(pickerThumb, id, 28);
+    }
+    const opts = pickerMenu.querySelectorAll('.pattern-option');
+    for (let i = 0; i < opts.length; i++) {
+      const el = opts[i];
+      const on = el.dataset.id === id;
+      el.classList.toggle('selected', on);
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+  }
+
+  function selectPattern(id) {
+    if (animating || !id || id === currentPatternId) {
+      closePicker();
+      return;
+    }
+    closePicker();
+    setPickerEnabled(false);
+    randomizeBtn.disabled = true;
+    setTargetFromId(id)
+      .then(function () {
+        setRandom();
+        render();
+        const entry = allPatterns.find(function (p) { return p.id === id; });
+        const name = entry ? entry.name : id;
+        statusEl.textContent = 'Target set to “' + name + '” — board randomized';
+        checkWin();
+        requestAnimationFrame(measureStep);
+      })
+      .catch(function () {})
+      .finally(function () {
+        setPickerEnabled(true);
+        randomizeBtn.disabled = false;
+      });
+  }
+
+  function buildPicker(patterns) {
+    allPatterns = patterns.slice();
+    pickerMenu.innerHTML = '';
+    const frag = document.createDocumentFragment();
+
+    const bySize = {};
+    for (let i = 0; i < patterns.length; i++) {
+      const p = patterns[i];
+      if (!bySize[p.size]) bySize[p.size] = { 'black-and-white': [], color: [] };
+      const cat = p.category === 'color' ? 'color' : 'black-and-white';
+      bySize[p.size][cat].push(p);
+    }
+
+    const sizes = Object.keys(bySize).map(Number).sort(function (a, b) { return a - b; });
+    for (let s = 0; s < sizes.length; s++) {
+      const size = sizes[s];
+      const groups = bySize[size];
+      const sizeLabel = size + '×' + size;
+
+      function addGroup(label, list) {
+        if (!list || !list.length) return;
+        const header = document.createElement('div');
+        header.className = 'pattern-group-label';
+        header.textContent = label;
+        frag.appendChild(header);
+        for (let i = 0; i < list.length; i++) {
+          const p = list[i];
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pattern-option';
+          btn.dataset.id = p.id;
+          btn.setAttribute('role', 'option');
+          btn.setAttribute('aria-selected', 'false');
+
+          const canvas = document.createElement('canvas');
+          canvas.className = 'pattern-option-thumb';
+          canvas.dataset.patternId = p.id;
+          canvas.width = 24;
+          canvas.height = 24;
+          if (typeof drawPatternThumb === 'function') {
+            drawPatternThumb(canvas, p.id, 24);
+            canvas.dataset.drawn = '1';
+          }
+
+          const text = document.createElement('span');
+          text.className = 'pattern-option-name';
+          text.textContent = p.name;
+
+          const badge = document.createElement('span');
+          badge.className = 'pattern-option-size';
+          badge.textContent = sizeLabel;
+
+          btn.appendChild(canvas);
+          btn.appendChild(text);
+          btn.appendChild(badge);
+          btn.addEventListener('click', function () {
+            selectPattern(p.id);
+          });
+          frag.appendChild(btn);
+        }
+      }
+
+      addGroup(sizeLabel + ' — Black & White', groups['black-and-white']);
+      addGroup(sizeLabel + ' — Color', groups.color);
+    }
+
+    pickerMenu.appendChild(frag);
+  }
+
+  pickerBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (animating || pickerBtn.disabled) return;
+    togglePicker();
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!pickerOpen) return;
+    if (pickerRoot.contains(e.target)) return;
+    closePicker();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && pickerOpen) {
+      closePicker();
+      pickerBtn.focus();
+    }
+  });
 
   gridEl.addEventListener('mouseover', function (e) {
     if (animating) return;
@@ -365,91 +539,42 @@
     checkWin();
   });
 
-  patternSelect.addEventListener('change', function () {
-    if (animating) return;
-    const id = patternSelect.value;
-    if (!id) return;
-    patternSelect.disabled = true;
-    randomizeBtn.disabled = true;
-    setTargetFromId(id)
-      .then(function () {
-        setRandom();
-        render();
-        const name = patternSelect.options[patternSelect.selectedIndex].text;
-        statusEl.textContent = 'Target set to “' + name + '” — board randomized';
-        checkWin();
-        requestAnimationFrame(measureStep);
-      })
-      .catch(function () {})
-      .finally(function () {
-        patternSelect.disabled = false;
-        randomizeBtn.disabled = false;
-      });
-  });
-
   let resizeTimer = null;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(measureStep, 100);
   });
 
-  function populateSelect(patterns) {
-    patternSelect.innerHTML = '';
-    const frag = document.createDocumentFragment();
-
-    // Group: size → category → patterns
-    const bySize = {};
-    for (let i = 0; i < patterns.length; i++) {
-      const p = patterns[i];
-      if (!bySize[p.size]) bySize[p.size] = { 'black-and-white': [], color: [] };
-      const cat = p.category === 'color' ? 'color' : 'black-and-white';
-      bySize[p.size][cat].push(p);
-    }
-
-    const sizes = Object.keys(bySize).map(Number).sort(function (a, b) { return a - b; });
-    for (let s = 0; s < sizes.length; s++) {
-      const size = sizes[s];
-      const groups = bySize[size];
-      const sizeLabel = size + '×' + size;
-
-      const bw = groups['black-and-white'];
-      if (bw && bw.length) {
-        const og = document.createElement('optgroup');
-        og.label = sizeLabel + ' — Black & White';
-        for (let i = 0; i < bw.length; i++) {
-          const p = bw[i];
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = p.name;
-          og.appendChild(opt);
-        }
-        frag.appendChild(og);
-      }
-
-      const col = groups.color;
-      if (col && col.length) {
-        const og = document.createElement('optgroup');
-        og.label = sizeLabel + ' — Color';
-        for (let i = 0; i < col.length; i++) {
-          const p = col[i];
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = p.name;
-          og.appendChild(opt);
-        }
-        frag.appendChild(og);
-      }
-    }
-    patternSelect.appendChild(frag);
-  }
-
   async function boot() {
     statusEl.textContent = 'Loading patterns…';
+
+    if (typeof loadPatternManifest !== 'function') {
+      await new Promise(function (resolve) {
+        let n = 0;
+        const t = setInterval(function () {
+          n++;
+          if (typeof loadPatternManifest === 'function' || n > 40) {
+            clearInterval(t);
+            resolve();
+          }
+        }, 25);
+      });
+    }
+
+    if (typeof loadPatternManifest !== 'function') {
+      statusEl.textContent = 'Pattern loader failed to load.';
+      return;
+    }
+
     try {
       const patterns = await loadPatternManifest();
-      populateSelect(patterns);
+      if (!patterns || !patterns.length) {
+        statusEl.textContent = 'No patterns found';
+        return;
+      }
 
-      // Default: 8×8 checkerboard B&W
+      buildPicker(patterns);
+
       const defaultId = patterns.find(function (p) {
         return p.id === 'checker-8';
       }) || patterns.find(function (p) {
@@ -461,7 +586,6 @@
         return;
       }
 
-      patternSelect.value = defaultId.id;
       await setTargetFromId(defaultId.id);
       setRandom();
       render();
