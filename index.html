@@ -24,9 +24,17 @@
   </div>
 
   <div id="controls">
-    <label for="patternSelect">Target:</label>
-    <select id="patternSelect"></select>
-    <button id="randomize">Randomize</button>
+    <label id="patternPickerLabelText" for="patternPickerBtn">Target:</label>
+    <div class="pattern-picker" id="patternPicker">
+      <button type="button" class="pattern-picker-btn" id="patternPickerBtn"
+              aria-haspopup="listbox" aria-expanded="false" aria-labelledby="patternPickerLabelText">
+        <canvas class="pattern-thumb" id="patternPickerThumb" width="28" height="28" aria-hidden="true"></canvas>
+        <span class="pattern-picker-label" id="patternPickerLabel">Loading…</span>
+        <span class="pattern-picker-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="pattern-picker-menu" id="patternPickerMenu" hidden role="listbox" aria-label="Pattern list"></div>
+    </div>
+    <button type="button" id="randomize">Randomize</button>
   </div>
   <div class="status" id="status"></div>
 </body>
