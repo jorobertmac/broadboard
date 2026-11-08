@@ -5,8 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Broad Board</title>
   <link rel="stylesheet" href="multimixi.css">
-  <script src="patterns.js" defer></script>
-  <script src="multimixi.js" defer></script>
+  <!-- Pattern modules: generators first, then core catalog/loader -->
+  <script src="patterns-gens-bw.js" defer></script>
+  <script src="patterns-gens-color.js" defer></script>
+  <script src="patterns-core.js" defer></script>
+  <!-- Game modules: board → picker → game (boot) -->
+  <script src="board.js" defer></script>
+  <script src="picker.js" defer></script>
+  <script src="game.js" defer></script>
 </head>
 <body>
   <h1>Broad Board</h1>
