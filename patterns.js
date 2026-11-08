@@ -1,7 +1,8 @@
 /**
  * Broad Board - pattern loader
- * Prefers JSON files under patterns/; falls back to built-in generators so the
- * game works even when not every size/category file is present yet.
+ * Built-in generators are available immediately (no network required for first
+ * paint). Optional JSON under patterns/ is fetched in the background and used
+ * when present.
  */
 (function (global) {
   'use strict';
@@ -63,8 +64,8 @@
       }],
       ['corners', 'Four Corners', function (r, c) {
         const m = Math.max(1, Math.floor(size / 4));
-        return ((r < m && c < m) || (r >= size - m && c < m) ||
-                (r >= size - m && c >= size - m) || (r < m && c >= size - m)) ? 1 : 0;
+        return ((r < m && c < m) || (r < m && c >= size - m) ||
+                (r >= size - m && c < m) || (r >= size - m && c >= size - m)) ? 1 : 0;
       }],
       ['zigzag-h', 'Zigzag Horizontal', function (r, c) { return (c + (r % 2)) % 2; }],
     ];
@@ -88,7 +89,7 @@
         const bc = Math.min(2, Math.floor((c * 3) / size));
         return 2 + (br * 3 + bc) % 6;
       }],
-      ['blocks-2x2', 'Color Mosaic 2x2', function (r, c) { return 2 + ((((r / 2) | 0) + ((c / 2) | 0) * 3) % 6); }],
+      ['blocks-2x2', 'Color Mosaic 2×2', function (r, c) { return 2 + ((((r / 2) | 0) + ((c / 2) | 0) * 3) % 6); }],
       ['bullseye', 'Bullseye', function (r, c) {
         const d = Math.floor(Math.max(Math.abs(r - mid), Math.abs(c - mid)));
         return [2, 0, 3, 1, 4, 5, 6, 7][d % 8];
@@ -147,12 +148,32 @@
     return list;
   }
 
-  let PATTERNS = [];
+  // Synchronous init — game can boot with zero network.
+  const catalog = buildBuiltinCatalog();
+  const genMap = {};
+  const entryById = {};
+  for (let i = 0; i < catalog.length; i++) {
+    const p = catalog[i];
+    genMap[p.id] = p._gen;
+    entryById[p.id] = p;
+  }
+
+  let PATTERNS = catalog.map(function (p) {
+    return {
+      id: p.id,
+      name: p.name,
+      size: p.size,
+      category: p.category,
+      path: p.path,
+    };
+  });
   let manifestLoaded = false;
+  let manifestPromise = null;
   const patternCache = new Map();
-  let genMap = {};
+  const thumbCache = new Map();
 
   function patternsBase() {
+    if (typeof document === 'undefined') return 'patterns/';
     const scripts = document.getElementsByTagName('script');
     for (let i = scripts.length - 1; i >= 0; i--) {
       const src = scripts[i].src || '';
@@ -163,128 +184,178 @@
     return 'patterns/';
   }
 
-  const BASE = patternsBase();
+  let _base = null;
+  function BASE() {
+    if (_base == null) _base = patternsBase();
+    return _base;
+  }
 
   async function loadManifest() {
     if (manifestLoaded) return PATTERNS;
+    if (manifestPromise) return manifestPromise;
 
-    const catalog = buildBuiltinCatalog();
-    genMap = {};
-    for (let i = 0; i < catalog.length; i++) {
-      genMap[catalog[i].id] = catalog[i]._gen;
-    }
-
-    try {
-      const res = await fetch(BASE + 'manifest.json');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.patterns && data.patterns.length) {
-          PATTERNS = data.patterns;
-          manifestLoaded = true;
-          global.PATTERNS = PATTERNS;
-          return PATTERNS;
-        }
-        // Split manifests: { parts: ["manifest-4.json", ...] }
-        if (data.parts && data.parts.length) {
-          const parts = await Promise.all(
-            data.parts.map(function (p) {
-              return fetch(BASE + p).then(function (r) {
-                return r.ok ? r.json() : { patterns: [] };
-              }).catch(function () { return { patterns: [] }; });
-            })
-          );
-          const merged = [];
-          for (let i = 0; i < parts.length; i++) {
-            if (parts[i].patterns) {
-              for (let j = 0; j < parts[i].patterns.length; j++) {
-                merged.push(parts[i].patterns[j]);
-              }
+    manifestPromise = (async function () {
+      try {
+        const res = await fetch(BASE() + 'manifest.json');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.patterns && data.patterns.length) {
+            PATTERNS = data.patterns;
+            for (let i = 0; i < PATTERNS.length; i++) {
+              entryById[PATTERNS[i].id] = Object.assign({}, entryById[PATTERNS[i].id] || {}, PATTERNS[i]);
             }
-          }
-          if (merged.length) {
-            PATTERNS = merged;
             manifestLoaded = true;
             global.PATTERNS = PATTERNS;
             return PATTERNS;
           }
+          if (data.parts && data.parts.length) {
+            const parts = await Promise.all(
+              data.parts.map(function (p) {
+                return fetch(BASE() + p).then(function (r) {
+                  return r.ok ? r.json() : { patterns: [] };
+                }).catch(function () { return { patterns: [] }; });
+              })
+            );
+            const merged = [];
+            for (let i = 0; i < parts.length; i++) {
+              if (parts[i].patterns) {
+                for (let j = 0; j < parts[i].patterns.length; j++) {
+                  merged.push(parts[i].patterns[j]);
+                }
+              }
+            }
+            if (merged.length) {
+              PATTERNS = merged;
+              for (let i = 0; i < PATTERNS.length; i++) {
+                entryById[PATTERNS[i].id] = Object.assign({}, entryById[PATTERNS[i].id] || {}, PATTERNS[i]);
+              }
+              manifestLoaded = true;
+              global.PATTERNS = PATTERNS;
+              return PATTERNS;
+            }
+          }
         }
-      }
-    } catch (e) { /* use builtin */ }
+      } catch (e) { /* keep builtins */ }
 
-    PATTERNS = catalog.map(function (p) {
-      return {
-        id: p.id,
-        name: p.name,
-        size: p.size,
-        category: p.category,
-        path: p.path,
-      };
-    });
-    manifestLoaded = true;
-    global.PATTERNS = PATTERNS;
-    return PATTERNS;
+      manifestLoaded = true;
+      global.PATTERNS = PATTERNS;
+      return PATTERNS;
+    })();
+
+    return manifestPromise;
   }
 
-  async function loadPattern(entryOrId) {
-    let entry = entryOrId;
+  function resolveEntry(entryOrId) {
     if (typeof entryOrId === 'string') {
-      entry = PATTERNS.find(function (p) { return p.id === entryOrId; });
-      if (!entry) throw new Error('Unknown pattern: ' + entryOrId);
+      const e = entryById[entryOrId] || PATTERNS.find(function (p) { return p.id === entryOrId; });
+      if (!e) throw new Error('Unknown pattern: ' + entryOrId);
+      return e;
     }
-    if (patternCache.has(entry.id)) {
-      return patternCache.get(entry.id);
-    }
+    return entryOrId;
+  }
 
-    try {
-      const res = await fetch(BASE + entry.path);
-      if (res.ok) {
-        const data = await res.json();
-        patternCache.set(entry.id, data);
-        return data;
-      }
-    } catch (e) { /* generate */ }
-
+  function generatePattern(entry) {
     const gen = genMap[entry.id];
-    if (!gen) {
-      const catalog = buildBuiltinCatalog();
-      const found = catalog.find(function (p) { return p.id === entry.id; });
-      if (!found) throw new Error('No generator for ' + entry.id);
-      const data = {
-        id: found.id,
-        name: found.name,
-        size: found.size,
-        category: found.category,
-        grid: fromGen(found.size, found._gen),
-      };
-      patternCache.set(entry.id, data);
-      return data;
-    }
-
-    const data = {
+    if (!gen) throw new Error('No generator for ' + entry.id);
+    return {
       id: entry.id,
       name: entry.name,
       size: entry.size,
       category: entry.category,
       grid: fromGen(entry.size, gen),
     };
-    patternCache.set(entry.id, data);
-    return data;
   }
 
-  function makeBoardFromPattern(pat) {
-    if (!pat || !pat.grid) return null;
-    return pat.grid.map(function (row) { return row.slice(); });
+  async function loadPattern(entryOrId) {
+    const entry = resolveEntry(entryOrId);
+    if (patternCache.has(entry.id)) {
+      return patternCache.get(entry.id);
+    }
+
+    // Prefer instantaneous builtin generation; refresh from JSON in background.
+    const generated = generatePattern(entry);
+    patternCache.set(entry.id, generated);
+
+    if (entry.path) {
+      fetch(BASE() + entry.path)
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) {
+          if (data && data.grid) {
+            patternCache.set(entry.id, data);
+            thumbCache.delete(entry.id);
+          }
+        })
+        .catch(function () { /* ignore */ });
+    }
+
+    return generated;
   }
 
-  function makeBoardFromGen() {
-    console.warn('makeBoardFromGen is deprecated');
-    return null;
+  /** Synchronous grid for thumbnails / offline use. */
+  function getPatternGridSync(id) {
+    if (patternCache.has(id)) {
+      const p = patternCache.get(id);
+      return p && p.grid ? p.grid : null;
+    }
+    const entry = entryById[id];
+    if (!entry) return null;
+    try {
+      const data = generatePattern(entry);
+      patternCache.set(id, data);
+      return data.grid;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Draw a pattern thumbnail onto a canvas (or return a data URL).
+   * px = output size in CSS pixels (devicePixelRatio applied for sharpness).
+   */
+  function drawPatternThumb(canvas, id, px) {
+    const grid = getPatternGridSync(id);
+    if (!grid || !canvas) return false;
+    const size = grid.length;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const out = px || 28;
+    canvas.width = Math.round(out * dpr);
+    canvas.height = Math.round(out * dpr);
+    canvas.style.width = out + 'px';
+    canvas.style.height = out + 'px';
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.imageSmoothingEnabled = false;
+    const cell = canvas.width / size;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const idx = grid[r][c] | 0;
+        ctx.fillStyle = COLORS[idx] || (idx ? '#0d0d0d' : '#e8e8e8');
+        ctx.fillRect(Math.floor(c * cell), Math.floor(r * cell), Math.ceil(cell) + 0.5, Math.ceil(cell) + 0.5);
+      }
+    }
+    return true;
+  }
+
+  function getThumbDataUrl(id, px) {
+    const key = id + '@' + (px || 28);
+    if (thumbCache.has(key)) return thumbCache.get(key);
+    const canvas = document.createElement('canvas');
+    if (!drawPatternThumb(canvas, id, px || 28)) return '';
+    const url = canvas.toDataURL('image/png');
+    thumbCache.set(key, url);
+    return url;
   }
 
   global.COLORS = COLORS;
   global.PATTERNS = PATTERNS;
   global.loadPatternManifest = loadManifest;
   global.loadPattern = loadPattern;
-  global.makeBoardFromPattern = makeBoardFromPattern;
-  global.makeBoardFromGen = makeBoardFromGen;
+  global.makeBoardFromPattern = function (pat) {
+    if (!pat || !pat.grid) return null;
+    return pat.grid.map(function (row) { return row.slice(); });
+  };
+  global.getPatternGridSync = getPatternGridSync;
+  global.drawPatternThumb = drawPatternThumb;
+  global.getThumbDataUrl = getThumbDataUrl;
+  global.getPatternEntry = function (id) { return entryById[id] || null; };
 })(typeof window !== 'undefined' ? window : globalThis);
